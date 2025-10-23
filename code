@@ -1,0 +1,921 @@
+
+import pandas as pd 
+
+​
+df = pd.read_csv('hmeq 2.csv')
+
+df.head
+<bound method NDFrame.head of       BAD   LOAN  MORTDUE     VALUE   REASON     JOB   YOJ  DEROG  DELINQ  \
+0       1   1100  25860.0   39025.0  HomeImp   Other  10.5    0.0     0.0   
+1       1   1300  70053.0   68400.0  HomeImp   Other   7.0    0.0     2.0   
+2       1   1500  13500.0   16700.0  HomeImp   Other   4.0    0.0     0.0   
+3       1   1500      NaN       NaN      NaN     NaN   NaN    NaN     NaN   
+4       0   1700  97800.0  112000.0  HomeImp  Office   3.0    0.0     0.0   
+...   ...    ...      ...       ...      ...     ...   ...    ...     ...   
+5955    0  88900  57264.0   90185.0  DebtCon   Other  16.0    0.0     0.0   
+5956    0  89000  54576.0   92937.0  DebtCon   Other  16.0    0.0     0.0   
+5957    0  89200  54045.0   92924.0  DebtCon   Other  15.0    0.0     0.0   
+5958    0  89800  50370.0   91861.0  DebtCon   Other  14.0    0.0     0.0   
+5959    0  89900  48811.0   88934.0  DebtCon   Other  15.0    0.0     0.0   
+
+           CLAGE  NINQ  CLNO    DEBTINC  
+0      94.366667   1.0   9.0        NaN  
+1     121.833333   0.0  14.0        NaN  
+2     149.466667   1.0  10.0        NaN  
+3            NaN   NaN   NaN        NaN  
+4      93.333333   0.0  14.0        NaN  
+...          ...   ...   ...        ...  
+5955  221.808718   0.0  16.0  36.112347  
+5956  208.692070   0.0  15.0  35.859971  
+5957  212.279697   0.0  15.0  35.556590  
+5958  213.892709   0.0  16.0  34.340882  
+5959  219.601002   0.0  16.0  34.571519  
+
+[5960 rows x 13 columns]>
+
+import numpy as np
+
+print("--- Data Structure and Missing Values ---")
+print(df.info())
+--- Data Structure and Missing Values ---
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 5960 entries, 0 to 5959
+Data columns (total 13 columns):
+ #   Column   Non-Null Count  Dtype  
+---  ------   --------------  -----  
+ 0   BAD      5960 non-null   int64  
+ 1   LOAN     5960 non-null   int64  
+ 2   MORTDUE  5442 non-null   float64
+ 3   VALUE    5848 non-null   float64
+ 4   REASON   5708 non-null   object 
+ 5   JOB      5681 non-null   object 
+ 6   YOJ      5445 non-null   float64
+ 7   DEROG    5252 non-null   float64
+ 8   DELINQ   5380 non-null   float64
+ 9   CLAGE    5652 non-null   float64
+ 10  NINQ     5450 non-null   float64
+ 11  CLNO     5738 non-null   float64
+ 12  DEBTINC  4693 non-null   float64
+dtypes: float64(9), int64(2), object(2)
+memory usage: 605.4+ KB
+None
+
+print("\n--- Missing Value Counts ---")
+# Count missing values for all columns and sort them
+missing_data = df.isnull().sum().sort_values(ascending=False)
+print(missing_data[missing_data > 0])
+
+--- Missing Value Counts ---
+DEBTINC    1267
+DEROG       708
+DELINQ      580
+MORTDUE     518
+YOJ         515
+NINQ        510
+CLAGE       308
+JOB         279
+REASON      252
+CLNO        222
+VALUE       112
+dtype: int64
+
+print("\n--- Target Variable Distribution ---")
+target_distribution = df['BAD'].value_counts(normalize=True) * 100
+print(target_distribution)
+
+--- Target Variable Distribution ---
+0    80.050336
+1    19.949664
+Name: BAD, dtype: float64
+
+# Separate numerical and categorical columns for strategy planning
+numerical_cols = df.select_dtypes(include=np.number).columns.tolist()
+categorical_cols = df.select_dtypes(include='object').columns.tolist()
+​
+print(f"\nNumerical Columns: {numerical_cols}")
+print(f"Categorical Columns: {categorical_cols}")
+
+Numerical Columns: ['BAD', 'LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+Categorical Columns: ['REASON', 'JOB']
+
+from sklearn.model_selection import train_test_split
+​
+# Define feature types based on your EDA
+numerical_features = ['LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+categorical_features = ['REASON', 'JOB']
+target_variable = 'BAD'
+​
+# Separate features (X) and target (y)
+X = df[numerical_features + categorical_features]
+y = df[target_variable]
+​
+# Split the data into training and testing sets (70/30 split is common)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+​
+print(f"X_train shape: {X_train.shape}")
+print(f"y_train default rate: {y_train.mean():.4f}")
+X_train shape: (4172, 12)
+y_train default rate: 0.1994
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+​
+# Pipeline for Numerical Features (Impute with Median, then Scale)
+numerical_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+​
+# Pipeline for Categorical Features (Impute with 'missing', then One-Hot Encode)
+categorical_pipeline = Pipeline([
+    # Use 'constant' strategy to fill missing values with the string 'missing'
+    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+    # Use handle_unknown='ignore' so the pipeline doesn't break if a user enters a new category in Streamlit
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
+​
+# Combine the pipelines into a ColumnTransformer
+# This is the full Preprocessor
+preprocessor = ColumnTransformer([
+    ('num', numerical_pipeline, numerical_features),
+    ('cat', categorical_pipeline, categorical_features)
+])
+
+!pip install xgboost
+Collecting xgboost
+  Downloading xgboost-2.1.4-py3-none-macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64.whl (2.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 17.0 MB/s eta 0:00:0000:0100:01
+Requirement already satisfied: scipy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.7.3)
+Requirement already satisfied: numpy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.21.5)
+Installing collected packages: xgboost
+Successfully installed xgboost-2.1.4
+
+import xgboost as xgb
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score
+​
+# -----------------------------------------------------------
+# 1. Calculate the Class Imbalance Weight
+# -----------------------------------------------------------
+# Calculate the ratio of the majority class (0) to the minority class (1)
+neg_count = y_train.value_counts()[0]
+pos_count = y_train.value_counts()[1]
+scale_pos_weight = neg_count / pos_count
+​
+print(f"Scale Position Weight: {scale_pos_weight:.2f}")
+​
+# -----------------------------------------------------------
+# 2. Define the Model
+# -----------------------------------------------------------
+# We'll use XGBoost, which is robust and great for tabular data
+xgb_classifier = xgb.XGBClassifier(
+    objective='binary:logistic',
+    n_estimators=100,
+    random_state=42,
+    # Use the calculated weight to address the imbalance
+    scale_pos_weight=scale_pos_weight, 
+    use_label_encoder=False, 
+    eval_metric='logloss' 
+)
+​
+# -----------------------------------------------------------
+# 3. Create the Full Pipeline
+# -----------------------------------------------------------
+# This pipeline handles all steps: Imputation -> Scaling -> Encoding -> Modeling
+full_pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor), # Your ColumnTransformer from the previous step
+    ('classifier', xgb_classifier)
+])
+​
+# -----------------------------------------------------------
+# 4. Train the Pipeline
+# -----------------------------------------------------------
+print("\nStarting model training...")
+full_pipeline.fit(X_train, y_train)
+print("Model training complete.")
+​
+# -----------------------------------------------------------
+# 5. Evaluate the Model (using the critical AUC-ROC metric)
+# -----------------------------------------------------------
+# Predict probabilities for the test set
+y_pred_proba = full_pipeline.predict_proba(X_test)[:, 1]
+​
+# Calculate AUC-ROC
+auc_roc = roc_auc_score(y_test, y_pred_proba)
+​
+print(f"\nModel Performance (Test Set):")
+print(f"AUC-ROC Score: {auc_roc:.4f}")
+Scale Position Weight: 4.01
+
+Starting model training...
+Model training complete.
+
+Model Performance (Test Set):
+AUC-ROC Score: 0.9637
+/Users/atharvabodhankar/opt/anaconda3/lib/python3.9/site-packages/xgboost/core.py:158: UserWarning: [15:12:36] WARNING: /Users/runner/work/xgboost/xgboost/src/learner.cc:740: 
+Parameters: { "use_label_encoder" } are not used.
+
+  warnings.warn(smsg, UserWarning)
+
+import joblib
+​
+# Define the filename for the saved model
+model_filename = 'loan_risk_pipeline.pkl'
+​
+# Save the full pipeline object to your project directory
+joblib.dump(full_pipeline, model_filename)
+​
+print(f"\nFull pipeline saved as {model_filename}")
+
+Full pipeline saved as loan_risk_pipeline.pkl
+
+# Continue in your Jupyter Notebook
+​
+import joblib
+​
+# Load the saved pipeline
+model_filename = 'loan_risk_pipeline.pkl'
+loaded_pipeline = joblib.load(model_filename)
+​
+print(f"Pipeline loaded successfully from {model_filename}")
+​
+# -----------------------------------------------------------
+# 1. Predict PD on the FULL Dataset (X)
+# -----------------------------------------------------------
+​
+# Use the loaded pipeline to predict the probability of default (PD)
+# The full pipeline will handle all the imputation and scaling for us!
+# We extract the probability for the '1' class (Default)
+df['Predicted_PD'] = loaded_pipeline.predict_proba(X)[:, 1]
+​
+print("\nPredicted PD column added to DataFrame.")
+print(df[['BAD', 'Predicted_PD']].head())
+​
+# -----------------------------------------------------------
+# 2. Create Risk Categories (for intuitive Tableau filtering)
+# -----------------------------------------------------------
+​
+# Define simple risk bands based on the Predicted PD score
+def create_risk_band(pd):
+    if pd < 0.10:
+        return 'A: Low Risk (<10%)'
+    elif pd < 0.30:
+        return 'B: Medium Risk (10-30%)'
+    elif pd < 0.50:
+        return 'C: High Risk (30-50%)'
+    else:
+        return 'D: Very High Risk (>50%)'
+​
+df['Risk_Band'] = df['Predicted_PD'].apply(create_risk_band)
+​
+print("\nRisk Band distribution:")
+print(df['Risk_Band'].value_counts())
+​
+# -----------------------------------------------------------
+# 3. Export the Tableau-Ready Dataset
+# -----------------------------------------------------------
+# This new CSV contains all original data plus your model's predictions.
+tableau_data_filename = 'hmeq_tableau_ready.csv'
+df.to_csv(tableau_data_filename, index=False)
+​
+print(f"\nFinal Tableau-ready data exported as: {tableau_data_filename}")
+Pipeline loaded successfully from loan_risk_pipeline.pkl
+
+Predicted PD column added to DataFrame.
+   BAD  Predicted_PD
+0    1      0.995793
+1    1      0.985273
+2    1      0.999805
+3    1      0.963142
+4    0      0.147018
+
+Risk Band distribution:
+A: Low Risk (<10%)          4477
+D: Very High Risk (>50%)    1182
+B: Medium Risk (10-30%)      229
+C: High Risk (30-50%)         72
+Name: Risk_Band, dtype: int64
+
+Final Tableau-ready data exported as: hmeq_tableau_ready.csv
+
+import os
+print(os.getcwd())
+/Users/atharvabodhankar
+
+​
+
+import pandas as pd 
+
+​
+df = pd.read_csv('hmeq 2.csv')
+
+df.head
+<bound method NDFrame.head of       BAD   LOAN  MORTDUE     VALUE   REASON     JOB   YOJ  DEROG  DELINQ  \
+0       1   1100  25860.0   39025.0  HomeImp   Other  10.5    0.0     0.0   
+1       1   1300  70053.0   68400.0  HomeImp   Other   7.0    0.0     2.0   
+2       1   1500  13500.0   16700.0  HomeImp   Other   4.0    0.0     0.0   
+3       1   1500      NaN       NaN      NaN     NaN   NaN    NaN     NaN   
+4       0   1700  97800.0  112000.0  HomeImp  Office   3.0    0.0     0.0   
+...   ...    ...      ...       ...      ...     ...   ...    ...     ...   
+5955    0  88900  57264.0   90185.0  DebtCon   Other  16.0    0.0     0.0   
+5956    0  89000  54576.0   92937.0  DebtCon   Other  16.0    0.0     0.0   
+5957    0  89200  54045.0   92924.0  DebtCon   Other  15.0    0.0     0.0   
+5958    0  89800  50370.0   91861.0  DebtCon   Other  14.0    0.0     0.0   
+5959    0  89900  48811.0   88934.0  DebtCon   Other  15.0    0.0     0.0   
+
+           CLAGE  NINQ  CLNO    DEBTINC  
+0      94.366667   1.0   9.0        NaN  
+1     121.833333   0.0  14.0        NaN  
+2     149.466667   1.0  10.0        NaN  
+3            NaN   NaN   NaN        NaN  
+4      93.333333   0.0  14.0        NaN  
+...          ...   ...   ...        ...  
+5955  221.808718   0.0  16.0  36.112347  
+5956  208.692070   0.0  15.0  35.859971  
+5957  212.279697   0.0  15.0  35.556590  
+5958  213.892709   0.0  16.0  34.340882  
+5959  219.601002   0.0  16.0  34.571519  
+
+[5960 rows x 13 columns]>
+
+import numpy as np
+
+print("--- Data Structure and Missing Values ---")
+print(df.info())
+--- Data Structure and Missing Values ---
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 5960 entries, 0 to 5959
+Data columns (total 13 columns):
+ #   Column   Non-Null Count  Dtype  
+---  ------   --------------  -----  
+ 0   BAD      5960 non-null   int64  
+ 1   LOAN     5960 non-null   int64  
+ 2   MORTDUE  5442 non-null   float64
+ 3   VALUE    5848 non-null   float64
+ 4   REASON   5708 non-null   object 
+ 5   JOB      5681 non-null   object 
+ 6   YOJ      5445 non-null   float64
+ 7   DEROG    5252 non-null   float64
+ 8   DELINQ   5380 non-null   float64
+ 9   CLAGE    5652 non-null   float64
+ 10  NINQ     5450 non-null   float64
+ 11  CLNO     5738 non-null   float64
+ 12  DEBTINC  4693 non-null   float64
+dtypes: float64(9), int64(2), object(2)
+memory usage: 605.4+ KB
+None
+
+print("\n--- Missing Value Counts ---")
+# Count missing values for all columns and sort them
+missing_data = df.isnull().sum().sort_values(ascending=False)
+print(missing_data[missing_data > 0])
+
+--- Missing Value Counts ---
+DEBTINC    1267
+DEROG       708
+DELINQ      580
+MORTDUE     518
+YOJ         515
+NINQ        510
+CLAGE       308
+JOB         279
+REASON      252
+CLNO        222
+VALUE       112
+dtype: int64
+
+print("\n--- Target Variable Distribution ---")
+target_distribution = df['BAD'].value_counts(normalize=True) * 100
+print(target_distribution)
+
+--- Target Variable Distribution ---
+0    80.050336
+1    19.949664
+Name: BAD, dtype: float64
+
+# Separate numerical and categorical columns for strategy planning
+numerical_cols = df.select_dtypes(include=np.number).columns.tolist()
+categorical_cols = df.select_dtypes(include='object').columns.tolist()
+​
+print(f"\nNumerical Columns: {numerical_cols}")
+print(f"Categorical Columns: {categorical_cols}")
+
+Numerical Columns: ['BAD', 'LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+Categorical Columns: ['REASON', 'JOB']
+
+from sklearn.model_selection import train_test_split
+​
+# Define feature types based on your EDA
+numerical_features = ['LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+categorical_features = ['REASON', 'JOB']
+target_variable = 'BAD'
+​
+# Separate features (X) and target (y)
+X = df[numerical_features + categorical_features]
+y = df[target_variable]
+​
+# Split the data into training and testing sets (70/30 split is common)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+​
+print(f"X_train shape: {X_train.shape}")
+print(f"y_train default rate: {y_train.mean():.4f}")
+X_train shape: (4172, 12)
+y_train default rate: 0.1994
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+​
+# Pipeline for Numerical Features (Impute with Median, then Scale)
+numerical_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+​
+# Pipeline for Categorical Features (Impute with 'missing', then One-Hot Encode)
+categorical_pipeline = Pipeline([
+    # Use 'constant' strategy to fill missing values with the string 'missing'
+    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+    # Use handle_unknown='ignore' so the pipeline doesn't break if a user enters a new category in Streamlit
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
+​
+# Combine the pipelines into a ColumnTransformer
+# This is the full Preprocessor
+preprocessor = ColumnTransformer([
+    ('num', numerical_pipeline, numerical_features),
+    ('cat', categorical_pipeline, categorical_features)
+])
+
+!pip install xgboost
+Collecting xgboost
+  Downloading xgboost-2.1.4-py3-none-macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64.whl (2.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 17.0 MB/s eta 0:00:0000:0100:01
+Requirement already satisfied: scipy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.7.3)
+Requirement already satisfied: numpy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.21.5)
+Installing collected packages: xgboost
+Successfully installed xgboost-2.1.4
+
+import xgboost as xgb
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score
+​
+# -----------------------------------------------------------
+# 1. Calculate the Class Imbalance Weight
+# -----------------------------------------------------------
+# Calculate the ratio of the majority class (0) to the minority class (1)
+neg_count = y_train.value_counts()[0]
+pos_count = y_train.value_counts()[1]
+scale_pos_weight = neg_count / pos_count
+​
+print(f"Scale Position Weight: {scale_pos_weight:.2f}")
+​
+# -----------------------------------------------------------
+# 2. Define the Model
+# -----------------------------------------------------------
+# We'll use XGBoost, which is robust and great for tabular data
+xgb_classifier = xgb.XGBClassifier(
+    objective='binary:logistic',
+    n_estimators=100,
+    random_state=42,
+    # Use the calculated weight to address the imbalance
+    scale_pos_weight=scale_pos_weight, 
+    use_label_encoder=False, 
+    eval_metric='logloss' 
+)
+​
+# -----------------------------------------------------------
+# 3. Create the Full Pipeline
+# -----------------------------------------------------------
+# This pipeline handles all steps: Imputation -> Scaling -> Encoding -> Modeling
+full_pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor), # Your ColumnTransformer from the previous step
+    ('classifier', xgb_classifier)
+])
+​
+# -----------------------------------------------------------
+# 4. Train the Pipeline
+# -----------------------------------------------------------
+print("\nStarting model training...")
+full_pipeline.fit(X_train, y_train)
+print("Model training complete.")
+​
+# -----------------------------------------------------------
+# 5. Evaluate the Model (using the critical AUC-ROC metric)
+# -----------------------------------------------------------
+# Predict probabilities for the test set
+y_pred_proba = full_pipeline.predict_proba(X_test)[:, 1]
+​
+# Calculate AUC-ROC
+auc_roc = roc_auc_score(y_test, y_pred_proba)
+​
+print(f"\nModel Performance (Test Set):")
+print(f"AUC-ROC Score: {auc_roc:.4f}")
+Scale Position Weight: 4.01
+
+Starting model training...
+Model training complete.
+
+Model Performance (Test Set):
+AUC-ROC Score: 0.9637
+/Users/atharvabodhankar/opt/anaconda3/lib/python3.9/site-packages/xgboost/core.py:158: UserWarning: [15:12:36] WARNING: /Users/runner/work/xgboost/xgboost/src/learner.cc:740: 
+Parameters: { "use_label_encoder" } are not used.
+
+  warnings.warn(smsg, UserWarning)
+
+import joblib
+​
+# Define the filename for the saved model
+model_filename = 'loan_risk_pipeline.pkl'
+​
+# Save the full pipeline object to your project directory
+joblib.dump(full_pipeline, model_filename)
+​
+print(f"\nFull pipeline saved as {model_filename}")
+
+Full pipeline saved as loan_risk_pipeline.pkl
+
+# Continue in your Jupyter Notebook
+​
+import joblib
+​
+# Load the saved pipeline
+model_filename = 'loan_risk_pipeline.pkl'
+loaded_pipeline = joblib.load(model_filename)
+​
+print(f"Pipeline loaded successfully from {model_filename}")
+​
+# -----------------------------------------------------------
+# 1. Predict PD on the FULL Dataset (X)
+# -----------------------------------------------------------
+​
+# Use the loaded pipeline to predict the probability of default (PD)
+# The full pipeline will handle all the imputation and scaling for us!
+# We extract the probability for the '1' class (Default)
+df['Predicted_PD'] = loaded_pipeline.predict_proba(X)[:, 1]
+​
+print("\nPredicted PD column added to DataFrame.")
+print(df[['BAD', 'Predicted_PD']].head())
+​
+# -----------------------------------------------------------
+# 2. Create Risk Categories (for intuitive Tableau filtering)
+# -----------------------------------------------------------
+​
+# Define simple risk bands based on the Predicted PD score
+def create_risk_band(pd):
+    if pd < 0.10:
+        return 'A: Low Risk (<10%)'
+    elif pd < 0.30:
+        return 'B: Medium Risk (10-30%)'
+    elif pd < 0.50:
+        return 'C: High Risk (30-50%)'
+    else:
+        return 'D: Very High Risk (>50%)'
+​
+df['Risk_Band'] = df['Predicted_PD'].apply(create_risk_band)
+​
+print("\nRisk Band distribution:")
+print(df['Risk_Band'].value_counts())
+​
+# -----------------------------------------------------------
+# 3. Export the Tableau-Ready Dataset
+# -----------------------------------------------------------
+# This new CSV contains all original data plus your model's predictions.
+tableau_data_filename = 'hmeq_tableau_ready.csv'
+df.to_csv(tableau_data_filename, index=False)
+​
+print(f"\nFinal Tableau-ready data exported as: {tableau_data_filename}")
+Pipeline loaded successfully from loan_risk_pipeline.pkl
+
+Predicted PD column added to DataFrame.
+   BAD  Predicted_PD
+0    1      0.995793
+1    1      0.985273
+2    1      0.999805
+3    1      0.963142
+4    0      0.147018
+
+Risk Band distribution:
+A: Low Risk (<10%)          4477
+D: Very High Risk (>50%)    1182
+B: Medium Risk (10-30%)      229
+C: High Risk (30-50%)         72
+Name: Risk_Band, dtype: int64
+
+Final Tableau-ready data exported as: hmeq_tableau_ready.csv
+
+import os
+print(os.getcwd())
+/Users/atharvabodhankar
+
+​
+
+import pandas as pd 
+
+​
+df = pd.read_csv('hmeq 2.csv')
+
+df.head
+<bound method NDFrame.head of       BAD   LOAN  MORTDUE     VALUE   REASON     JOB   YOJ  DEROG  DELINQ  \
+0       1   1100  25860.0   39025.0  HomeImp   Other  10.5    0.0     0.0   
+1       1   1300  70053.0   68400.0  HomeImp   Other   7.0    0.0     2.0   
+2       1   1500  13500.0   16700.0  HomeImp   Other   4.0    0.0     0.0   
+3       1   1500      NaN       NaN      NaN     NaN   NaN    NaN     NaN   
+4       0   1700  97800.0  112000.0  HomeImp  Office   3.0    0.0     0.0   
+...   ...    ...      ...       ...      ...     ...   ...    ...     ...   
+5955    0  88900  57264.0   90185.0  DebtCon   Other  16.0    0.0     0.0   
+5956    0  89000  54576.0   92937.0  DebtCon   Other  16.0    0.0     0.0   
+5957    0  89200  54045.0   92924.0  DebtCon   Other  15.0    0.0     0.0   
+5958    0  89800  50370.0   91861.0  DebtCon   Other  14.0    0.0     0.0   
+5959    0  89900  48811.0   88934.0  DebtCon   Other  15.0    0.0     0.0   
+
+           CLAGE  NINQ  CLNO    DEBTINC  
+0      94.366667   1.0   9.0        NaN  
+1     121.833333   0.0  14.0        NaN  
+2     149.466667   1.0  10.0        NaN  
+3            NaN   NaN   NaN        NaN  
+4      93.333333   0.0  14.0        NaN  
+...          ...   ...   ...        ...  
+5955  221.808718   0.0  16.0  36.112347  
+5956  208.692070   0.0  15.0  35.859971  
+5957  212.279697   0.0  15.0  35.556590  
+5958  213.892709   0.0  16.0  34.340882  
+5959  219.601002   0.0  16.0  34.571519  
+
+[5960 rows x 13 columns]>
+
+import numpy as np
+
+print("--- Data Structure and Missing Values ---")
+print(df.info())
+--- Data Structure and Missing Values ---
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 5960 entries, 0 to 5959
+Data columns (total 13 columns):
+ #   Column   Non-Null Count  Dtype  
+---  ------   --------------  -----  
+ 0   BAD      5960 non-null   int64  
+ 1   LOAN     5960 non-null   int64  
+ 2   MORTDUE  5442 non-null   float64
+ 3   VALUE    5848 non-null   float64
+ 4   REASON   5708 non-null   object 
+ 5   JOB      5681 non-null   object 
+ 6   YOJ      5445 non-null   float64
+ 7   DEROG    5252 non-null   float64
+ 8   DELINQ   5380 non-null   float64
+ 9   CLAGE    5652 non-null   float64
+ 10  NINQ     5450 non-null   float64
+ 11  CLNO     5738 non-null   float64
+ 12  DEBTINC  4693 non-null   float64
+dtypes: float64(9), int64(2), object(2)
+memory usage: 605.4+ KB
+None
+
+print("\n--- Missing Value Counts ---")
+# Count missing values for all columns and sort them
+missing_data = df.isnull().sum().sort_values(ascending=False)
+print(missing_data[missing_data > 0])
+
+--- Missing Value Counts ---
+DEBTINC    1267
+DEROG       708
+DELINQ      580
+MORTDUE     518
+YOJ         515
+NINQ        510
+CLAGE       308
+JOB         279
+REASON      252
+CLNO        222
+VALUE       112
+dtype: int64
+
+print("\n--- Target Variable Distribution ---")
+target_distribution = df['BAD'].value_counts(normalize=True) * 100
+print(target_distribution)
+
+--- Target Variable Distribution ---
+0    80.050336
+1    19.949664
+Name: BAD, dtype: float64
+
+# Separate numerical and categorical columns for strategy planning
+numerical_cols = df.select_dtypes(include=np.number).columns.tolist()
+categorical_cols = df.select_dtypes(include='object').columns.tolist()
+​
+print(f"\nNumerical Columns: {numerical_cols}")
+print(f"Categorical Columns: {categorical_cols}")
+
+Numerical Columns: ['BAD', 'LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+Categorical Columns: ['REASON', 'JOB']
+
+from sklearn.model_selection import train_test_split
+​
+# Define feature types based on your EDA
+numerical_features = ['LOAN', 'MORTDUE', 'VALUE', 'YOJ', 'DEROG', 'DELINQ', 'CLAGE', 'NINQ', 'CLNO', 'DEBTINC']
+categorical_features = ['REASON', 'JOB']
+target_variable = 'BAD'
+​
+# Separate features (X) and target (y)
+X = df[numerical_features + categorical_features]
+y = df[target_variable]
+​
+# Split the data into training and testing sets (70/30 split is common)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+​
+print(f"X_train shape: {X_train.shape}")
+print(f"y_train default rate: {y_train.mean():.4f}")
+X_train shape: (4172, 12)
+y_train default rate: 0.1994
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+​
+# Pipeline for Numerical Features (Impute with Median, then Scale)
+numerical_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+​
+# Pipeline for Categorical Features (Impute with 'missing', then One-Hot Encode)
+categorical_pipeline = Pipeline([
+    # Use 'constant' strategy to fill missing values with the string 'missing'
+    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+    # Use handle_unknown='ignore' so the pipeline doesn't break if a user enters a new category in Streamlit
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
+​
+# Combine the pipelines into a ColumnTransformer
+# This is the full Preprocessor
+preprocessor = ColumnTransformer([
+    ('num', numerical_pipeline, numerical_features),
+    ('cat', categorical_pipeline, categorical_features)
+])
+
+!pip install xgboost
+Collecting xgboost
+  Downloading xgboost-2.1.4-py3-none-macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64.whl (2.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 17.0 MB/s eta 0:00:0000:0100:01
+Requirement already satisfied: scipy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.7.3)
+Requirement already satisfied: numpy in ./opt/anaconda3/lib/python3.9/site-packages (from xgboost) (1.21.5)
+Installing collected packages: xgboost
+Successfully installed xgboost-2.1.4
+
+import xgboost as xgb
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score
+​
+# -----------------------------------------------------------
+# 1. Calculate the Class Imbalance Weight
+# -----------------------------------------------------------
+# Calculate the ratio of the majority class (0) to the minority class (1)
+neg_count = y_train.value_counts()[0]
+pos_count = y_train.value_counts()[1]
+scale_pos_weight = neg_count / pos_count
+​
+print(f"Scale Position Weight: {scale_pos_weight:.2f}")
+​
+# -----------------------------------------------------------
+# 2. Define the Model
+# -----------------------------------------------------------
+# We'll use XGBoost, which is robust and great for tabular data
+xgb_classifier = xgb.XGBClassifier(
+    objective='binary:logistic',
+    n_estimators=100,
+    random_state=42,
+    # Use the calculated weight to address the imbalance
+    scale_pos_weight=scale_pos_weight, 
+    use_label_encoder=False, 
+    eval_metric='logloss' 
+)
+​
+# -----------------------------------------------------------
+# 3. Create the Full Pipeline
+# -----------------------------------------------------------
+# This pipeline handles all steps: Imputation -> Scaling -> Encoding -> Modeling
+full_pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor), # Your ColumnTransformer from the previous step
+    ('classifier', xgb_classifier)
+])
+​
+# -----------------------------------------------------------
+# 4. Train the Pipeline
+# -----------------------------------------------------------
+print("\nStarting model training...")
+full_pipeline.fit(X_train, y_train)
+print("Model training complete.")
+​
+# -----------------------------------------------------------
+# 5. Evaluate the Model (using the critical AUC-ROC metric)
+# -----------------------------------------------------------
+# Predict probabilities for the test set
+y_pred_proba = full_pipeline.predict_proba(X_test)[:, 1]
+​
+# Calculate AUC-ROC
+auc_roc = roc_auc_score(y_test, y_pred_proba)
+​
+print(f"\nModel Performance (Test Set):")
+print(f"AUC-ROC Score: {auc_roc:.4f}")
+Scale Position Weight: 4.01
+
+Starting model training...
+Model training complete.
+
+Model Performance (Test Set):
+AUC-ROC Score: 0.9637
+/Users/atharvabodhankar/opt/anaconda3/lib/python3.9/site-packages/xgboost/core.py:158: UserWarning: [15:12:36] WARNING: /Users/runner/work/xgboost/xgboost/src/learner.cc:740: 
+Parameters: { "use_label_encoder" } are not used.
+
+  warnings.warn(smsg, UserWarning)
+
+import joblib
+​
+# Define the filename for the saved model
+model_filename = 'loan_risk_pipeline.pkl'
+​
+# Save the full pipeline object to your project directory
+joblib.dump(full_pipeline, model_filename)
+​
+print(f"\nFull pipeline saved as {model_filename}")
+
+Full pipeline saved as loan_risk_pipeline.pkl
+
+# Continue in your Jupyter Notebook
+​
+import joblib
+​
+# Load the saved pipeline
+model_filename = 'loan_risk_pipeline.pkl'
+loaded_pipeline = joblib.load(model_filename)
+​
+print(f"Pipeline loaded successfully from {model_filename}")
+​
+# -----------------------------------------------------------
+# 1. Predict PD on the FULL Dataset (X)
+# -----------------------------------------------------------
+​
+# Use the loaded pipeline to predict the probability of default (PD)
+# The full pipeline will handle all the imputation and scaling for us!
+# We extract the probability for the '1' class (Default)
+df['Predicted_PD'] = loaded_pipeline.predict_proba(X)[:, 1]
+​
+print("\nPredicted PD column added to DataFrame.")
+print(df[['BAD', 'Predicted_PD']].head())
+​
+# -----------------------------------------------------------
+# 2. Create Risk Categories (for intuitive Tableau filtering)
+# -----------------------------------------------------------
+​
+# Define simple risk bands based on the Predicted PD score
+def create_risk_band(pd):
+    if pd < 0.10:
+        return 'A: Low Risk (<10%)'
+    elif pd < 0.30:
+        return 'B: Medium Risk (10-30%)'
+    elif pd < 0.50:
+        return 'C: High Risk (30-50%)'
+    else:
+        return 'D: Very High Risk (>50%)'
+​
+df['Risk_Band'] = df['Predicted_PD'].apply(create_risk_band)
+​
+print("\nRisk Band distribution:")
+print(df['Risk_Band'].value_counts())
+​
+# -----------------------------------------------------------
+# 3. Export the Tableau-Ready Dataset
+# -----------------------------------------------------------
+# This new CSV contains all original data plus your model's predictions.
+tableau_data_filename = 'hmeq_tableau_ready.csv'
+df.to_csv(tableau_data_filename, index=False)
+​
+print(f"\nFinal Tableau-ready data exported as: {tableau_data_filename}")
+Pipeline loaded successfully from loan_risk_pipeline.pkl
+
+Predicted PD column added to DataFrame.
+   BAD  Predicted_PD
+0    1      0.995793
+1    1      0.985273
+2    1      0.999805
+3    1      0.963142
+4    0      0.147018
+
+Risk Band distribution:
+A: Low Risk (<10%)          4477
+D: Very High Risk (>50%)    1182
+B: Medium Risk (10-30%)      229
+C: High Risk (30-50%)         72
+Name: Risk_Band, dtype: int64
+
+Final Tableau-ready data exported as: hmeq_tableau_ready.csv
