@@ -12,3 +12,8 @@ Key Achievements:
 	•	A Risk Heatmap highlighting high-default segments by JOB and REASON.
 	•	A Box Plot showing that higher Debt-to-Income ratios are significantly correlated with default probability.
 	•	Impact: Enabled stakeholders to identify high-risk borrower groups and make informed credit approval and pricing decisions, improving portfolio stability.
+
+
+
+
+
